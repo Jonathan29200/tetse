@@ -1,14 +1,4 @@
-if Config.UseESX then
-	
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-Citizen.CreateThread(function()
-		while not ESX do
-			TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
-
-			Citizen.Wait(500)
-		end
-	end)
-end
+ESX = exports["es_extended"]:getSharedObject()
 
 local isNearPump = false
 local isFueling = false
@@ -86,7 +76,13 @@ Citizen.CreateThread(function()
 			isNearPump = pumpObject
 
 			if Config.UseESX then
-				currentCash = ESX.GetPlayerData().money
+				local playerData = ESX.GetPlayerData()
+				for i=1, #playerData.accounts, 1 do
+					if playerData.accounts[i].name == 'money' then
+						currentCash = playerData.accounts[i].money
+						break
+					end
+				end
 			end
 		else
 			isNearPump = false
@@ -370,10 +366,7 @@ if Config.EnableHUD then
 	Citizen.CreateThread(function()
 		while true do
 			if displayHud then
-				DrawAdvancedText(0.130 - x, 0.77 - y, 0.005, 0.0028, 0.6, mph, 255, 255, 255, 255, 6, 1)
-				DrawAdvancedText(0.174 - x, 0.77 - y, 0.005, 0.0028, 0.6, kmh, 255, 255, 255, 255, 6, 1)
-				DrawAdvancedText(0.2195 - x, 0.77 - y, 0.005, 0.0028, 0.6, fuel, 255, 255, 255, 255, 6, 1)
-				DrawAdvancedText(0.148 - x, 0.7765 - y, 0.005, 0.0028, 0.4, "mp/h              km/h              Fuel", 255, 255, 255, 255, 6, 1)
+				DrawAdvancedText(0.2195 - x, 0.875 - y, 0.858, 0.0, 0.4, fuel, 255, 255, 255, 0.6, 2)
 			else
 				Citizen.Wait(750)
 			end
