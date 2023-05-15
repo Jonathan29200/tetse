@@ -749,11 +749,3 @@ AddEventHandler('esx_deliveries:startJob:client', function(deliveryType)
 	CurrentType   = deliveryType
 	CurrentStatus = Status.PLAYER_STARTED_DELIVERY
 end)
-
-RegisterCommand('startdelivery', function(source, args, rawCommand)
-    local deliveryType = args[1] -- Nous récupérons le premier argument de la commande (qui doit être le type de livraison)
-
-    -- Vous pouvez ajouter ici des vérifications sur deliveryType si vous voulez vous assurer qu'il est valide.
-
-    StartDelivery(deliveryType) -- Nous appelons la fonction StartDelivery avec le type de livraison donné.
-end, false)
