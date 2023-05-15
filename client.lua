@@ -1,510 +1,759 @@
-Config = {}
+--[[ ============================================================ ]]--
+--[[ |       FIVEM ESX DELIVERY PLUGIN REMAKE BY AKKARIIN       | ]]--
+--[[ ============================================================ ]]--
 
---░██████╗░███████╗███╗░░██╗███████╗██████╗░░█████╗░██╗░░░░░
---██╔════╝░██╔════╝████╗░██║██╔════╝██╔══██╗██╔══██╗██║░░░░░
---██║░░██╗░█████╗░░██╔██╗██║█████╗░░██████╔╝███████║██║░░░░░
---██║░░╚██╗██╔══╝░░██║╚████║██╔══╝░░██╔══██╗██╔══██║██║░░░░░
---╚██████╔╝███████╗██║░╚███║███████╗██║░░██║██║░░██║███████╗
---░╚═════╝░╚══════╝╚═╝░░╚══╝╚══════╝╚═╝░░╚═╝╚═╝░░╚═╝╚══════╝
+ESX = nil
 
-Config.Debug = true -- Debug mode, only for development.
-
-Config.status_onTick = "esx_status:onTick" --Modify it if you use an Status Custom.
-Config.status_getStatus = "esx_status:getStatus" --Modify it if you use an Status Custom.
-
-Config.DropRefreshTime = 18000000 --Time for me to refresh the Drops.
-
---Player
-Config.MaxWeight = 120000 -- This is the maximum weight of each player (Remember to add the same in qs-core/config.lua)
-Config.MaxInventorySlots = 41 -- The maximum slots of each player (Remember to add the same in qs-core/config.lua)
-
--- Drop
-Config.DropMaxWeight = 1500000 -- Max weight on droped items
-
---Stashes
-Config.StashWeight = 100000 --Stash's maximum weight (Everyone will have this maximum)
-Config.StashSlots = 50 --Stash's maximum slots (Everyone will have this maximum)
-
---Glovebox
-Config.GloveboxWeight = 10000 --Glovebox's maximum weight (Everyone will have this maximum)
-Config.GloveboxSlots = 5 --Glovebox's maximum slots (Everyone will have this maximum)
-
---Hotbar
-Config.EnableVisualHotBar = true -- Enable the visual hotbar by default in TAB
-Config.ShowWeapons = true -- Show a notification every time you use a weapon.
-Config.ShowItems = true -- Show a notification every time you use an item.
-
-Config.ItemsUsableFromHotbar = true -- Set if the items can be used from the hotbar or not.
-Config.ItemsUsableFromHotbarInVehicle = true -- If the option above its true, you can only disable usage of items in vehicles (Not weapons).
-
-Config.UpdateWeaponQuality = true -- Do you want weapons to degrade?
-
--- Reload
-Config.Reload = true -- With this system, you will reload the weapon with keys.
-Config.ReloadMappingName = 'Reload Weapon' -- Explanatory text of the command?
-
--- Prop
-Config.UseItemDrop = true -- If you use false, the drop will be a marker, if true it will be a prop.
-Config.MaxDropViewDistance = 12.5 -- Distance at which the prop is seen.
-Config.ItemDropObject = `prop_money_bag_01` -- This prop will be the drop (https://gtahash.ru/)
-
---Handsup.
-Config.HandsUp = true --Hands Up is important, as it will allow other players to steal when they raise their hands.
-Config.HandsUpKeyMappingName = 'Handsup' -- Name of the key mapping.
-Config.WeaponNeededToSteal = true -- True if you need a weapon in hand to steal someone else
-Config.EnableSearchOtherPlayersInventory = true -- Enable or not search other players inventory
-Config.EnableSearchOtherPlayersInventoryDead = true -- Enable or not search other players inventory if they are dead
-
-Config.DistanceCheckEnable = true -- Enable distance check when you are stealing someone or not. (Only works in Onesync servers, DISABLE THIS IF YOU ARE NOT USING ONESYNC)
-Config.DistanceCheckSteal = 10.0 -- Distance check to prevent hacker to open inventory of player that are far from them (Not recommended to lower it).
-
-Config.ListAccountsSteal = { -- List of accounts to be stealed only in QBCore version.
-    { account = 'cash' , name = 'Cash' },
-    { account = 'crypto' , name = 'Crypto' },
+local Status = {
+	DELIVERY_INACTIVE                 = 0,
+	PLAYER_STARTED_DELIVERY           = 1,
+	PLAYER_REACHED_VEHICLE_POINT      = 2,
+	PLAYER_REMOVED_GOODS_FROM_VEHICLE = 3,
+	PLAYER_REACHED_DELIVERY_POINT     = 4,
+	PLAYER_RETURNING_TO_BASE          = 5
 }
 
-Config.OpenAnimation = true --If you put true here, there will be an animation when opening the inventory
+-- Don't touch this, pls :)
 
--- Near players give items.
-Config.ShowNameNearPlayer = true --Set to false it would just show the ID of the target
+local CurrentStatus             = Status.DELIVERY_INACTIVE
+local CurrentSubtitle           = nil
+local CurrentBlip               = nil
+local CurrentType               = nil
+local CurrentVehicle            = nil
+local CurrentAttachments        = {}
+local CurrentVehicleAttachments = {}
+local DeliveryLocation          = {}
+local DeliveryComplete          = {}
+local DeliveryRoutes            = {}
+local PlayerJob                 = nil
+local FinishedJobs              = 0
 
--- To be able to use this you should be in ESX and follow the docs to add the event that trigger this once you join in the server for the first time
--- Event to trigger only from serverside to serverside for segurity reason.
--- Event TriggerEvent('qs-inventory:GiveStarterItems', id)
-Config.StarterItems = { 
-    ['water_bottle'] = 3, -- Insert item first and then the amount
-    ['tosti'] = 5,
-}
+-- Make player look like a worker
 
-Config.Commands = { --Modify the commands as you want
-    ["fix"] = "inventoryfix",
-    ["giveitem"] = "giveitem",
-    ["giveweapon"] = "giveweapon",
-    ["giveweaponcolor"] = "giveweaponcolor",
-    ["randomitems"] = "randomitems",
-    ["search"] = "search",
-    ["handsup"] = "handsup",
-    ["clearinventory"] = "clearinventory",
-    ["reloadweapon"] = "reloadweapon",
-    ["openhotbar"] = "openhotbar",
-    ["openinventory"] = "openinventory",
-    ["openinventorytarget"] = "openinventorytarget",
-    ["opentrunk"] = "opentrunk",
-    ["openglovebox"] = "openglovebox",
-}
-
-Config.Keys = { --Basic inventory keys
-    ["OpenHotBar"] = "TAB",
-    ["OpenInventory"] = "F2",
-    ["OpenVending"] = "E",
-    ["OpenStash"] = "E",
-    ["RepairWeapon"] = "E",
-    ["OpenCrafting"] = "E",
-    ["HandsUp"] = "X",
-    ["Reload"] = "R",
-}
-
-Config.notStolenItems = {
-    ['id_card'] = true,
-    ['water_bottle'] = true,
-    ['tosti'] = true
-}
-
-Config.notStoredStashItems = {
-    ['backpack'] = true, -- Don't modify this
-}
-
-function SendTextMessage(msg, type) --You can add your notification system here for simple messages.
-    if type == 'inform' then 
-      SetNotificationTextEntry('STRING')
-      AddTextComponentString(msg)
-      DrawNotification(0,1)
-  
-      --MORE EXAMPLES OF NOTIFICATIONS.
-      --exports['qs-core']:Notify(msg, "primary")
-      --exports['mythic_notify']:DoHudText('inform', msg)
-    end
-    if type == 'error' then 
-      SetNotificationTextEntry('STRING')
-      AddTextComponentString(msg)
-      DrawNotification(0,1)
-  
-      --MORE EXAMPLES OF NOTIFICATIONS.
-      --exports['qs-core']:Notify(msg, "error")
-      --exports['mythic_notify']:DoHudText('error', msg)
-    end
-    if type == 'success' then 
-      SetNotificationTextEntry('STRING')
-      AddTextComponentString(msg)
-      DrawNotification(0,1)
-  
-      --MORE EXAMPLES OF NOTIFICATIONS.
-      --exports['qs-core']:Notify(msg, "success")
-      --exports['mythic_notify']:DoHudText('success', msg)
-    end
+function LoadWorkPlayerSkin(deliveryType)
+	
+	local playerPed = PlayerPedId()
+	
+	if deliveryType == 'scooter' then
+		if IsPedMale(playerPed) then
+			for k, v in pairs(Config.OutfitScooter) do
+				SetPedComponentVariation(playerPed, k, v.drawables, v.texture, 1)
+			end
+		else
+			for k, v in pairs(Config.OutfitScooterF) do
+				SetPedComponentVariation(playerPed, k, v.drawables, v.texture, 1)
+			end
+		end
+	else
+		if IsPedMale(playerPed) then
+			for k, v in pairs(Config.OutfitVan) do
+				SetPedComponentVariation(playerPed, k, v.drawables, v.texture, 1)
+			end
+		else
+			for k, v in pairs(Config.OutfitVanF) do
+				SetPedComponentVariation(playerPed, k, v.drawables, v.texture, 1)
+			end
+		end
+	end
 end
 
-function CustomNotify(x, y, z, text)
-    -- Add your custom draw notification system here.
+-- Load the default player skin (for esx_skin)
+
+function LoadDefaultPlayerSkin()
+	ESX.TriggerServerCallback('esx_skin:getPlayerSkin', function(skin, jobSkin)
+		TriggerEvent('skinchanger:loadSkin', skin)
+	end)
 end
 
+-- Control the input
 
---██████╗░███████╗░██████╗░  ██╗████████╗███████╗███╗░░░███╗░██████╗
---██╔══██╗██╔════╝██╔═══██╗  ██║╚══██╔══╝██╔════╝████╗░████║██╔════╝
---██████╔╝█████╗░░██║██╗██║  ██║░░░██║░░░█████╗░░██╔████╔██║╚█████╗░
---██╔══██╗██╔══╝░░╚██████╔╝  ██║░░░██║░░░██╔══╝░░██║╚██╔╝██║░╚═══██╗
---██║░░██║███████╗░╚═██╔═╝░  ██║░░░██║░░░███████╗██║░╚═╝░██║██████╔╝
---╚═╝░░╚═╝╚══════╝░░░╚═╝░░░  ╚═╝░░░╚═╝░░░╚══════╝╚═╝░░░░░╚═╝╚═════╝░
-
-Config.ReqItems = {
-    {
-        coords = vec3(2699.0739746094, 3296.3061523438, 55.703121185303),
-        dist = 5.0,
-        items = {
-            'lockpick',
-            'advancedlockpick'
-        },
-    },
-    {
-        coords = vec3(2691.1044921875, 3284.0744628906, 55.240516662598),
-        dist = 5.0,
-        items = {
-            'sandwich',
-            'advancedlockpick'
-        },
-    },
-}
-
- 
---██╗░░░██╗███████╗██╗░░██╗██╗░█████╗░██╗░░░░░███████╗░██████╗
---██║░░░██║██╔════╝██║░░██║██║██╔══██╗██║░░░░░██╔════╝██╔════╝
---╚██╗░██╔╝█████╗░░███████║██║██║░░╚═╝██║░░░░░█████╗░░╚█████╗░
---░╚████╔╝░██╔══╝░░██╔══██║██║██║░░██╗██║░░░░░██╔══╝░░░╚═══██╗
---░░╚██╔╝░░███████╗██║░░██║██║╚█████╔╝███████╗███████╗██████╔╝
---░░░╚═╝░░░╚══════╝╚═╝░░╚═╝╚═╝░╚════╝░╚══════╝╚══════╝╚═════╝░
-
-Config.WeaponsOnVehicle = false -- Recomended in false
-
--- Glovebox
-Config.OpenGloveboxesAll = false -- Set to true to allow all players to open the glovebox of the vehicles / Set false to allow only the owner of the vehicle to open the glovebox
-Config.OpenGloveboxesPolice = true -- If the option above its set to false, set if the police can open the trunk or not anyways
-Config.OpenGloveboxesPoliceGrade = 0 -- Grade from the police will be able to open the gloveboxs
-
--- Trunk
-Config.OpenTrunkAll = false -- Set to true to allow all players to open the trunk of the vehicles / Set false to allow only the owner of the vehicle to open the trunk
-Config.OpenTrunkPolice = true -- If the option above its set to false, set if the police can open the trunk or not anyways
-Config.OpenTrunkPoliceGrade = 0 -- Grade from the police will be able to open the trunks
-
-Config.TrunkWeightVehicles = { -- Add here the vehicles you want to have an specific weight or slots in the trunk (Respect the type of quotation marks, if not it will not work)
-    ['flatbed'] = 100000,
-    ['sandking'] = 750000,
-    ['sandking2'] = 750000,
-    ["rebel"] = 400000,
-    ["rebel2"] = 400000,
-    ["yosemite"] = 400000,
-    ["yosemite3"] = 400000,
-    ["slamvan"] = 400000,
-    ["slamvan2"] = 400000,
-    ["slamvan3"] = 400000,
-    ["caracara"] = 750000,
-    ["caracara2"] = 750000,
-    ["everon"] = 600000,
-    ["bodhi2"] = 600000,
-    ["f150"] = 700000,
-    ["riata"] = 600000,
-    ["dubsta3"] = 600000,
-    ["kamacho"] = 600000,
-    ["rr14"] = 600000,
-    ["22g63"] = 600000,
-    ["bagger"] = 350000,
-    ["brioso2"] = 500000,
-    ["sultanrs"] = 300000,
-    ["sultan"] = 300000,
-}
-
-Config.TrunkWeight = { --You can check the type of vehicle here or in its META files https://wiki.rage.mp/index.php?title=Vehicles#Compacts.
-    [0] =   { MaxWeight = 5000,    slots = 50 }, -- Compacts
-    [1] =   { MaxWeight = 5000,    slots = 50 }, --Sedans
-    [2] =   { MaxWeight = 5000,    slots = 50 }, --SUVs
-    [3] =   { MaxWeight = 5000,    slots = 50 }, --Coupes
-    [4] =   { MaxWeight = 5000,    slots = 50 }, --Muscle
-    [5] =   { MaxWeight = 5000,    slots = 50 }, -- Sports Classics
-    [6] =   { MaxWeight = 5000,    slots = 50 }, --Sports
-    [7] =   { MaxWeight = 5000,    slots = 50 }, --Super
-    [8] =   { MaxWeight = 5000,    slots = 50 }, --Motorcycles
-    [9] =   { MaxWeight = 5000,    slots = 50 }, --Off-road
-    [10] =  { MaxWeight = 5000,    slots = 50 }, --Industrial
-    [11] =  { MaxWeight = 5000,    slots = 50 }, --Utility
-    [12] =  { MaxWeight = 5000,    slots = 50 }, --van
-    [13] =  { MaxWeight = 5000,    slots = 50 }, --Cycles
-    [14] =  { MaxWeight = 5000,    slots = 50 }, --boats
-    [15] =  { MaxWeight = 5000,    slots = 50 }, --Helicopters
-    [16] =  { MaxWeight = 5000,    slots = 50 }, --Planes
-    [17] =  { MaxWeight = 5000,    slots = 50 }, -- Service
-    [18] =  { MaxWeight = 5000,    slots = 50 }, --Emergency
-    [19] =  { MaxWeight = 5000,    slots = 50 }, --Military
-    [20] =  { MaxWeight = 5000,    slots = 50 }, -- Commerical
-    [21] =  { MaxWeight = 5000,    slots = 50 }  --Trains
-}
-
-Config.BackEngineVehicles = { --The cars on this list will have the trunk in front.
-    'ninef',
-    'adder',
-    'vagner',
-    't20',
-    'infernus',
-    'zentorno',
-    'reaper',
-    'comet2',
-    'comet3',
-    'jester',
-    'jester2',
-    'cheetah',
-    'cheetah2',
-    'prototipo',
-    'turismor',
-    'pfister811',
-    'ardent',
-    'nero',
-    'nero2',
-    'tempesta',
-    'vacca',
-    'bullet',
-    'osiris',
-    'entityxf',
-    'turismo2',
-    'fmj',
-    're7b',
-    'tyrus',
-    'italigtb',
-    'penetrator',
-    'monroe',
-    'ninef2',
-    'stingergt',
-    'surfer',
-    'surfer2',
-    'comet3',
-}
-
-
---░██████╗░░█████╗░██████╗░██████╗░░█████╗░░██████╗░███████╗
---██╔════╝░██╔══██╗██╔══██╗██╔══██╗██╔══██╗██╔════╝░██╔════╝
---██║░░██╗░███████║██████╔╝██████╦╝███████║██║░░██╗░█████╗░░
---██║░░╚██╗██╔══██║██╔══██╗██╔══██╗██╔══██║██║░░╚██╗██╔══╝░░
---╚██████╔╝██║░░██║██║░░██║██████╦╝██║░░██║╚██████╔╝███████╗
---░╚═════╝░╚═╝░░╚═╝╚═╝░░╚═╝╚═════╝░╚═╝░░╚═╝░╚═════╝░╚══════╝
-
-Config.GarbageItems = {}
-
-Config.FreezeGarbages = true -- Recommendation to set this config true to freeze all garbages in the Config.Garbage Props config to not allow players to move them with a vehicle.
-
-Config.GarbageRefreshTime = 3600000 --Time in milliseconds for new objects to appear in the trash.
-
-Config.GarbageProps = { --Modify the props of the garbage cans (Search the props in google)
-    [218085040] = true,
-    [666561306] = true, 
-	[-58485588] = true,
-	[-206690185] = true,
-	[1511880420] = true,
-    [682791951] = true, 
-}
-
-Config.RandomGarbageItems = { --Add here the trash items (One of these random options will appear)
-    [1] = {
-        [1] = {
-            name = "aluminum",
-            amount = math.random(1, 4),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 1,
-        },
-        [2] = {
-            name = "plastic",
-            amount = math.random(1, 7),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 2,
-        },
-    },
-    [2] = {
-        [1] = {
-            name = "plastic",
-            amount = math.random(1, 7),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 1,
-        },
-        [2] = {
-            name = "metalscrap",
-            amount = math.random(1, 5),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 2,
-        },
-    },
-    [3] = {
-        [1] = {
-            name = "glass",
-            amount = math.random(1, 7),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 1,
-        },
-        [2] = {
-            name = "joint",
-            amount = 1,
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 2,
-        },
-    },
-    [4] = {
-        [1] = {
-            name = "lighter",
-            amount = math.random(1, 2),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 1,
-        },
-        [2] = {
-            name = "metalscrap",
-            amount = math.random(1, 7),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 2,
-        },
-    },
-    [5] = {
-        [1] = {
-            name = "metalscrap",
-            amount = math.random(1, 10),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 1,
-        },
-        [2] = {
-            name = "rubber",
-            amount = math.random(1, 15),
-            price = 4,
-            info = {},
-            type = "item",
-            slot = 2,
-        },
-    },
-}
-
---██╗░░░██╗██╗░██████╗██╗░░░██╗░█████╗░██╗░░░░░  ░█████╗░░█████╗░███╗░░██╗███████╗██╗░██████╗░
---██║░░░██║██║██╔════╝██║░░░██║██╔══██╗██║░░░░░  ██╔══██╗██╔══██╗████╗░██║██╔════╝██║██╔════╝░
---╚██╗░██╔╝██║╚█████╗░██║░░░██║███████║██║░░░░░  ██║░░╚═╝██║░░██║██╔██╗██║█████╗░░██║██║░░██╗░
---░╚████╔╝░██║░╚═══██╗██║░░░██║██╔══██║██║░░░░░  ██║░░██╗██║░░██║██║╚████║██╔══╝░░██║██║░░╚██╗
---░░╚██╔╝░░██║██████╔╝╚██████╔╝██║░░██║███████╗  ╚█████╔╝╚█████╔╝██║░╚███║██║░░░░░██║╚██████╔╝
---░░░╚═╝░░░╚═╝╚═════╝░░╚═════╝░╚═╝░░╚═╝╚══════╝  ░╚════╝░░╚════╝░╚═╝░░╚══╝╚═╝░░░░░╚═╝░╚═════╝░
-
-Config.HideMinimap = false --If you activate this, you will hide the map when opening the inventory and reveal it when closing it.
-Config.ToggleHud = true --If you don't use this option, just leave it false (Hide your hud when opening the inventory)
-
-function ClothingComponent(data)
-    if data.component == 'mask' then
-        ExecuteCommand('mask')
-    elseif data.component == 'glasses' then
-        ExecuteCommand('glasses')
-    elseif data.component == 'shirt' then
-        ExecuteCommand('shirt')
-    elseif data.component == 'vest' then
-        ExecuteCommand('vest')
-    elseif data.component == 'pants' then
-        ExecuteCommand('pants')
-    elseif data.component == 'shoes' then
-        ExecuteCommand('shoes')
-    elseif data.component == 'bag' then
-        ExecuteCommand('bag')
-    elseif data.component == 'gloves' then
-        ExecuteCommand('gloves')
-    elseif data.component == 'watch' then
-        ExecuteCommand('watch')
-    else
-        ExecuteCommand(data.component)
-    end
+function HandleInput()
+	
+	if PlayerJob ~= "burgershot" then
+		return
+	end
+	
+	if CurrentStatus == Status.PLAYER_REMOVED_GOODS_FROM_VEHICLE then
+		DisableControlAction(0, 21, true)
+	else
+		Wait(500)
+	end
 end
 
-function ToggleHudTrue(toggle) --If your Hud has this system, you can add these functions.
-    -- Put your event here!
+-- Main logic handler
+
+function HandleLogic()
+	
+	if PlayerJob ~= "burgershot" then
+		return
+	end
+	
+	local playerPed = PlayerPedId()
+	local pCoords   = GetEntityCoords(playerPed)
+	
+	if CurrentStatus ~= Status.DELIVERY_INACTIVE then
+		if IsPedDeadOrDying(playerPed, true) then
+			FinishDelivery(CurrentType, false)
+			return
+		elseif GetVehicleEngineHealth(CurrentVehicle) < 20 and CurrentVehicle ~= nil then
+			FinishDelivery(CurrentType, false)
+			return
+		end
+	
+		if CurrentStatus == Status.PLAYER_STARTED_DELIVERY then
+			if not IsPlayerInsideDeliveryVehicle() then
+				CurrentSubtitle = _U("get_back_in_vehicle")
+			else
+				CurrentSubtitle = nil
+			end
+			
+			if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, DeliveryLocation.Item1.x, DeliveryLocation.Item1.y, DeliveryLocation.Item1.z, true) < 1.5 then
+				CurrentStatus = Status.PLAYER_REACHED_VEHICLE_POINT
+				CurrentSubtitle = _U("remove_goods_subtext")
+				PlaySound(-1, "Menu_Accept", "Phone_SoundSet_Default", false, 0, true)
+			end
+		end
+		
+		if CurrentStatus == Status.PLAYER_REMOVED_GOODS_FROM_VEHICLE then
+			if CurrentType == 'van' or CurrentType == 'truck' then
+				CurrentSubtitle = _U("deliver_inside_shop")
+				if CurrentType == 'van' and not IsEntityPlayingAnim(playerPed, "anim@heists@box_carry@", "walk", 3) then
+					ForceCarryAnimation();
+				end
+			end
+			
+			if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, DeliveryLocation.Item2.x, DeliveryLocation.Item2.y, DeliveryLocation.Item2.z, true) < 1.5 then
+				
+				TriggerServerEvent("esx_deliveries:finishDelivery:server", CurrentType)
+				PlaySound(-1, "Menu_Accept", "Phone_SoundSet_Default", false, 0, true)
+				FinishedJobs = FinishedJobs + 1
+				
+				ESX.ShowNotification(_U("finish_job") .. FinishedJobs .. "/" .. #DeliveryRoutes)
+				
+				if FinishedJobs >= #DeliveryRoutes then
+					RemovePlayerProps()
+					RemoveBlip(CurrentBlip)
+					DeliveryLocation.Item1 = Config.Base.retveh
+					DeliveryLocation.Item2 = {x = 0, y = 0, z = 0}
+					CurrentBlip            = CreateBlipAt(DeliveryLocation.Item1.x, DeliveryLocation.Item1.y, DeliveryLocation.Item1.z)
+					CurrentSubtitle        = _U("get_back_to_deliveryhub")
+					CurrentStatus          = Status.PLAYER_RETURNING_TO_BASE
+					return
+				else
+					RemovePlayerProps()
+					GetNextDeliveryPoint(false)
+					CurrentStatus = Status.PLAYER_STARTED_DELIVERY
+					CurrentSubtitle = _U("drive_next_point")
+					PlaySound(-1, "Menu_Accept", "Phone_SoundSet_Default", false, 0, true)
+				end
+			end
+		end
+		Wait(500)
+	else
+		Wait(1000)
+	end
 end
 
-function ToggleHudFalse(toggle) --If your Hud has this system, you can add these functions.
-    -- Put your event here!
+-- Handling markers and object status
+
+function HandleMarkers()
+	
+	if PlayerJob ~= "burgershot" then
+		return
+	end
+	
+	local pCoords = GetEntityCoords(PlayerPedId())
+	local deleter = Config.Base.deleter
+	
+	if CurrentStatus ~= Status.DELIVERY_INACTIVE then
+		DrawMarker(20, deleter.x, deleter.y, deleter.z, 0, 0, 0, 0, 180.0, 0, 1.5, 1.5, 1.5, 249, 38, 114, 150, true, true)
+		if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, deleter.x, deleter.y, deleter.z) < 1.5 then
+			DisplayHelpText(_U("end_delivery"))
+			if IsControlJustReleased(0, 51) then
+				EndDelivery()
+				return
+			end
+		end
+		
+		if CurrentStatus == Status.PLAYER_STARTED_DELIVERY then
+			if not IsPlayerInsideDeliveryVehicle() and CurrentVehicle ~= nil then
+				local VehiclePos = GetEntityCoords(CurrentVehicle)
+				local ArrowHeight = VehiclePos.z
+				ArrowHeight = VehiclePos.z + 1.0
+				
+				if CurrentType == 'van' then
+					ArrowHeight = ArrowHeight + 1.0
+				elseif CurrentType == 'truck' then
+					ArrowHeight = ArrowHeight + 2.0
+				end
+				
+				DrawMarker(20, VehiclePos.x, VehiclePos.y, ArrowHeight, 0, 0, 0, 0, 180.0, 0, 0.8, 0.8, 0.8, 102, 217, 239, 150, true, true)
+			else
+				local dl = DeliveryLocation.Item1
+				if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, dl.x, dl.y, dl.z, true) < 150 then
+					DrawMarker(20, dl.x, dl.y, dl.z, 0, 0, 0, 0, 180.0, 0, 1.5, 1.5, 1.5, 102, 217, 239, 150, true, true)
+				end
+			end
+		end
+		
+		if CurrentStatus == Status.PLAYER_REACHED_VEHICLE_POINT then
+			if not IsPlayerInsideDeliveryVehicle() then
+				TrunkPos = GetEntityCoords(CurrentVehicle)
+				TrunkForward = GetEntityForwardVector(CurrentVehicle)
+				local ScaleFactor = 1.0
+				
+				for k, v in pairs(Config.Scales) do
+					if k == CurrentType then
+						ScaleFactor = v
+					end
+				end
+				
+				TrunkPos = TrunkPos - (TrunkForward * ScaleFactor)
+				TrunkHeight = TrunkPos.z
+				TrunkHeight = TrunkPos.z + 0.7
+				
+				local ArrowSize = {x = 0.8, y = 0.8, z = 0.8}
+				
+				if CurrentType == 'scooter' then
+					ArrowSize = {x = 0.15, y = 0.15, z = 0.15}
+				end
+				
+				DrawMarker(20, TrunkPos.x, TrunkPos.y, TrunkHeight, 0, 0, 0, 180.0, 0, 0, ArrowSize.x, ArrowSize.y, ArrowSize.z, 102, 217, 239, 150, true, true)
+				
+				if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, TrunkPos.x, TrunkPos.y, TrunkHeight, true) < 1.0 then
+					DisplayHelpText(_U("remove_goods"))
+					if IsControlJustReleased(0, 51) then
+						PlayTrunkAnimation()
+						GetPlayerPropsForDelivery(CurrentType)
+						CurrentStatus = Status.PLAYER_REMOVED_GOODS_FROM_VEHICLE
+					end
+				end
+			end
+		end
+		
+		if CurrentStatus == Status.PLAYER_REMOVED_GOODS_FROM_VEHICLE then
+			local dp = DeliveryLocation.Item2
+			DrawMarker(20, dp.x, dp.y, dp.z, 0, 0, 0, 0, 180.0, 0, 1.5, 1.5, 1.5, 102, 217, 239, 150, true, true)
+		end
+		
+		if CurrentStatus == Status.PLAYER_RETURNING_TO_BASE then
+			local dp = Config.Base.deleter
+			DrawMarker(20, dp.x, dp.y, dp.z, 0, 0, 0, 0, 180.0, 0, 1.5, 1.5, 1.5, 102, 217, 239, 150, true, true)
+		end
+	else
+		local bCoords = Config.Base.coords
+		if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, bCoords.x, bCoords.y, bCoords.z, true) < 150.0 then
+			local ScooterPos = Config.Base.scooter
+			local VanPos     = Config.Base.van
+			local TruckPos   = Config.Base.truck
+			
+			DrawMarker(37, ScooterPos.x, ScooterPos.y, ScooterPos.z, 0, 0, 0, 0, 0, 0, 2.5, 2.5, 2.5, 243, 56, 56, 150, true, true)
+			DrawMarker(36, VanPos.x, VanPos.y, VanPos.z, 0, 0, 0, 0, 0, 0, 2.5, 2.5, 2.5, 250, 170, 60, 150, true, true)
+			DrawMarker(39, TruckPos.x, TruckPos.y, TruckPos.z, 0, 0, 0, 0, 0, 0, 2.5, 2.5, 2.5, 230, 219, 91, 150, true, true)
+			
+			local SelectType = false
+			
+			if GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, ScooterPos.x, ScooterPos.y, ScooterPos.z, true) < 1.5 then
+				DisplayHelpText(_U("start_delivery") .. tostring(Config.Safe.scooter))
+				SelectType = 'scooter'
+			elseif GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, VanPos.x, VanPos.y, VanPos.z, true) < 1.5 then
+				DisplayHelpText(_U("start_delivery") .. tostring(Config.Safe.van))
+				SelectType = 'van'
+			elseif GetDistanceBetweenCoords(pCoords.x, pCoords.y, pCoords.z, TruckPos.x, TruckPos.y, TruckPos.z, true) < 1.5 then
+				DisplayHelpText(_U("start_delivery") .. tostring(Config.Safe.truck))
+				SelectType = 'truck'
+			else
+				SelectType = false
+			end
+			
+			if SelectType ~= false then
+				if IsControlJustReleased(0, 51) then
+					StartDelivery(SelectType)
+					PlaySound(-1, "Menu_Accept", "Phone_SoundSet_Default", false, 0, true)
+				end
+			end
+		end
+	end
 end
 
-Config.RepairMarker = { --Modify the Stash marker as you like.
-    enablemarker = true,
-    type = 2, 
-    scale = {x = 0.2, y = 0.2, z = 0.1}, 
-    colour = {r = 71, g = 181, b = 255, a = 120},
-    movement = 1, --Use 0 to disable movement.
-    distanceMarker = 10.0,
-    distanceText = 1.5,
-}
+-- The trunk animation when the player remove the goods from the vehicle
+function PlayTrunkAnimation()
+	Citizen.CreateThread(function()
+		if CurrentType == 'truck' then
+			if Config.Models.vehDoor.usingTrunkForTruck then
+				SetVehicleDoorOpen(CurrentVehicle, 5, false, false)
+			else
+				SetVehicleDoorOpen(CurrentVehicle, 2, false, false)
+				SetVehicleDoorOpen(CurrentVehicle, 3, false, false)
+			end
+		elseif CurrentType == 'van' then
+			if Config.Models.vehDoor.usingTrunkForVan then
+				SetVehicleDoorOpen(CurrentVehicle, 5, false, false)
+			else
+				
+			end
+			
+		end
+		Wait(1000)
+		if CurrentType == 'truck' then
+			if Config.Models.vehDoor.usingTrunkForTruck then
+				SetVehicleDoorShut(CurrentVehicle, 5, false)
+			else
+				SetVehicleDoorShut(CurrentVehicle, 2, false)
+				SetVehicleDoorShut(CurrentVehicle, 3, false)
+			end
+		elseif CurrentType == 'van' then
+			if Config.Models.vehDoor.usingTrunkForVan then
+				SetVehicleDoorShut(CurrentVehicle, 5, false)
+			else
+				SetVehicleDoorShut(CurrentVehicle, 2, false)
+				SetVehicleDoorShut(CurrentVehicle, 3, false)
+			end
+		end
+	end)
+end
 
-Config.DropMarker = { --Modify the Drop marker as you like.
-    enabletext = false,
-    type = 2, 
-    scale = {x = 0.2, y = 0.2, z = 0.1}, 
-    colour = {r = 71, g = 181, b = 255, a = 120},
-    movement = 1, --Use 0 to disable movement.
-    distanceMarker = 7.5,
-    distanceText = 2.5,
-}
+-- Create a blip for the location
 
-function DrawText3Ds(x, y, z, text)
-    SetTextScale(0.35, 0.35)
-    SetTextFont(4)
-    SetTextProportional(1)
-    SetTextColour(255, 255, 255, 215)
+function CreateBlipAt(x, y, z)
+	
+	local tmpBlip = AddBlipForCoord(x, y, z)
+	
+	SetBlipSprite(tmpBlip, 1)
+	SetBlipColour(tmpBlip, 66)
+	SetBlipAsShortRange(tmpBlip, true)
+	BeginTextCommandSetBlipName("STRING")
+	AddTextComponentString(_U("dst_blip"))
+	EndTextCommandSetBlipName(blip)
+	SetBlipAsMissionCreatorBlip(tmpBlip, true)
+	SetBlipRoute(tmpBlip, true)
+	
+	return tmpBlip
+end
+
+-- Let the player carry something
+
+function ForceCarryAnimation()
+	TaskPlayAnim(PlayerPedId(), "anim@heists@box_carry@", "walk", 8.0, 8.0, -1, 51)
+end
+
+-- Tell the server start delivery job
+
+function StartDelivery(deliveryType)
+	TriggerServerEvent("esx_deliveries:removeSafeMoney:server", deliveryType)
+end
+
+-- Check is the player in the delivery vehicle
+
+function IsPlayerInsideDeliveryVehicle()
+	if IsPedSittingInAnyVehicle(PlayerPedId()) then
+		local playerVehicle = GetVehiclePedIsIn(PlayerPedId(), false)
+		if playerVehicle == CurrentVehicle then
+			return true
+		end
+	end
+	return false
+end
+
+-- Is this checkpoint the last checkpoint?
+
+function IsLastDelivery()
+	local isLast = false
+	local dp1    = DeliveryLocation.Item2
+	local dp2    = DeliveryRoutes[#DeliveryRoutes].Item2
+	if dp1.x == dp2.x and dp1.y == dp2.y and dp1.z == dp2.z then
+		isLast = true
+	end
+	return isLast
+end
+
+-- Remove all object from the player ped
+
+function RemovePlayerProps()
+	for i = 0, #CurrentAttachments do
+		DetachEntity(CurrentAttachments[i])
+		DeleteEntity(CurrentAttachments[i])
+	end
+	ClearPedTasks(PlayerPedId())
+	CurrentAttachments = {}
+end
+
+-- Spawn an object and attach it to the player
+
+function GetPlayerPropsForDelivery(deliveryType)
+	
+	RequestAnimDict("anim@heists@box_carry@")
+	while not HasAnimDictLoaded("anim@heists@box_carry@") do
+		Citizen.Wait(0)
+	end
+		
+	if deliveryType == 'scooter' then
+		local ModelHash = GetHashKey("prop_paper_bag_01")
+		local PlayerPed = PlayerPedId()
+		local PlayerPos = GetEntityCoords(PlayerPed)
+			
+		WaitModelLoad(ModelHash)
+		
+		local Object = CreateObject(ModelHash, PlayerPos.x, PlayerPos.y, PlayerPos.z, true, true, false)
+		
+		AttachEntityToEntity(Object, PlayerPed, GetPedBoneIndex(PlayerPed, 28422), 0.25, 0.0, 0.06, 65.0, -130.0, -65.0, true, true, false, true, 0, true)
+		table.insert(CurrentAttachments, Object)
+	end
+	
+	if deliveryType == 'van' then
+		TaskPlayAnim(PlayerPedId(), "anim@heists@box_carry@", "walk", 8.0, 8.0, -1, 51)
+		
+		local Rand      = GetRandomFromRange(1, #Config.VanGoodsPropNames)
+		local ModelHash = GetHashKey(Config.VanGoodsPropNames[Rand])
+		
+		WaitModelLoad(ModelHash)
+		
+		local PlayerPed = PlayerPedId()
+		local PlayerPos = GetOffsetFromEntityInWorldCoords(PlayerPed, 0.0, 0.0, -5.0)
+		local Object = CreateObject(ModelHash, PlayerPos.x, PlayerPos.y, PlayerPos.z, true, false, false)
+		
+		AttachEntityToEntity(Object, PlayerPed, GetPedBoneIndex(PlayerPed, 28422), 0.0, 0.0, -0.55, 0.0, 0.0, 90.0, true, false, false, true, 1, true)
+		table.insert(CurrentAttachments, Object)
+	end
+	
+	if deliveryType == 'truck' then
+		TaskPlayAnim(PlayerPedId(), "anim@heists@box_carry@", "walk", 8.0, 8.0, -1, 51)
+		
+		local ModelHash = GetHashKey("prop_sacktruck_02b")
+		
+		WaitModelLoad(ModelHash)
+		
+		local PlayerPed = PlayerPedId()
+		local PlayerPos = GetOffsetFromEntityInWorldCoords(PlayerPed, 0.0, 0.0, -5.0)
+		local Object = CreateObject(ModelHash, PlayerPos.x, PlayerPos.y, PlayerPos.z, true, false, false)
+		
+		AttachEntityToEntity(Object, PlayerPed, GetEntityBoneIndexByName(PlayerPed, "SKEL_Pelvis"), -0.075, 0.90, -0.86, -20.0, -0.5, 181.0, true, false, false, true, 1, true)
+		table.insert(CurrentAttachments, Object)
+	end
+	
+	local JobData = (FinishedJobs + 1) / #DeliveryRoutes
+	
+	if JobData >= 0.5 and #CurrentVehicleAttachments > 2 then
+		DetachEntity(CurrentVehicleAttachments[1])
+		DeleteEntity(CurrentVehicleAttachments[1])
+		table.remove(CurrentVehicleAttachments, 1)
+	end
+	if JobData >= 1.0 and #CurrentVehicleAttachments > 1 then
+		DetachEntity(CurrentVehicleAttachments[1])
+		DeleteEntity(CurrentVehicleAttachments[1])
+		table.remove(CurrentVehicleAttachments, 1)
+	end
+end
+
+-- Spawn the scooter, truck or van
+
+function SpawnDeliveryVehicle(deliveryType)
+	
+	local Rnd           = GetRandomFromRange(1, #Config.ParkingSpawns)
+	local SpawnLocation = Config.ParkingSpawns[Rnd]
+	
+	if deliveryType == 'scooter' then
+		local ModelHash = GetHashKey(Config.Models.scooter)
+		WaitModelLoad(ModelHash)
+		CurrentVehicle = CreateVehicle(ModelHash, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, SpawnLocation.h, true, true)
+	end
+	
+	if deliveryType == 'truck' then
+		local ModelHash = GetHashKey(Config.Models.truck)
+		WaitModelLoad(ModelHash)
+		CurrentVehicle = CreateVehicle(ModelHash, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, SpawnLocation.h, true, true)
+		SetVehicleLivery(CurrentVehicle, 2)
+	end
+	
+	if deliveryType == 'van' then
+		local ModelHash = GetHashKey(Config.Models.van)
+		WaitModelLoad(ModelHash)
+		CurrentVehicle = CreateVehicle(ModelHash, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, SpawnLocation.h, true, true)
+		SetVehicleExtra(CurrentVehicle, 2, false)
+		SetVehicleLivery(CurrentVehicle, 0)
+		SetVehicleColours(CurrentVehicle, 0, 0)
+	end
+	
+	DecorSetInt(CurrentVehicle, "Delivery.Rental", Config.DecorCode)
+	SetVehicleOnGroundProperly(CurrentVehicle)
+	
+	if deliveryType == 'scooter' then
+		local ModelHash = GetHashKey("prop_med_bag_01")
+		WaitModelLoad(ModelHash)
+		local Object = CreateObject(ModelHash, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, true, false, false)
+		AttachEntityToEntity(Object, CurrentVehicle, GetEntityBoneIndexByName(CurrentVehicle, "misc_a"), 0.0, -0.55, 0.45, 0.0, 0.0, 0.0, true, true, false, true, 0, true)
+		table.insert(CurrentVehicleAttachments, Object)
+	end
+	
+	if deliveryType == 'van' then
+		local ModelHash1 = GetHashKey("prop_crate_11e")
+		local ModelHash2 = GetHashKey("prop_cardbordbox_02a")
+		WaitModelLoad(ModelHash1)
+		WaitModelLoad(ModelHash2)
+		local Object1 = CreateObject(ModelHash1, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, true, false, false)
+		local Object2 = CreateObject(ModelHash1, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, true, false, false)
+		local Object3 = CreateObject(ModelHash2, SpawnLocation.x, SpawnLocation.y, SpawnLocation.z, true, false, false)
+		AttachEntityToEntity(Object1, CurrentVehicle, GetEntityBoneIndexByName(CurrentVehicle, "chassic"), 0.25, -1.55, -0.12, 0.0, 0.0, 0.0, true, true, false, true, 0, true)
+		AttachEntityToEntity(Object2, CurrentVehicle, GetEntityBoneIndexByName(CurrentVehicle, "chassic"), -0.26, -1.55, 0.2, 0.0, 0.0, 0.0, true, true, false, true, 0, true)
+		AttachEntityToEntity(Object3, CurrentVehicle, GetEntityBoneIndexByName(CurrentVehicle, "chassic"), -0.26, -1.55, -0.12, 0.0, 0.0, 0.0, true, true, false, true, 0, true)
+		table.insert(CurrentVehicleAttachments, Object1)
+		table.insert(CurrentVehicleAttachments, Object2)
+		table.insert(CurrentVehicleAttachments, Object3)
+	end
+end
+
+-- Get the next destination
+
+function GetNextDeliveryPoint(firstTime)
+	if CurrentBlip ~= nil then
+		RemoveBlip(CurrentBlip)
+	end
+	
+	for i = 1, #DeliveryComplete do
+		if not DeliveryComplete[i] then
+			if not firstTime then
+				DeliveryComplete[i] = true
+				break
+			end
+		end
+	end
+	
+	for i = 1, #DeliveryComplete do
+		if not DeliveryComplete[i] then
+			CurrentBlip = CreateBlipAt(DeliveryRoutes[i].Item1.x, DeliveryRoutes[i].Item1.y, DeliveryRoutes[i].Item1.z)
+			DeliveryLocation = DeliveryRoutes[i]
+			break
+		end
+	end
+end
+
+-- Create some random destinations
+
+function CreateRoute(deliveryType)
+	
+	local TotalDeliveries = GetRandomFromRange(Config.Deliveries.min, Config.Deliveries.max)
+	local DeliveryPoints = {}
+	
+	if deliveryType == 'scooter' then
+		DeliveryPoints = Config.DeliveryLocationsScooter
+	elseif deliveryType == 'van' then
+		DeliveryPoints = Config.DeliveryLocationsVan
+	else
+		DeliveryPoints = Config.DeliveryLocationsTruck
+	end
+	
+	while #DeliveryRoutes < TotalDeliveries do
+		Wait(1)
+		local PreviousPoint = nil
+		if #DeliveryRoutes < 1 then
+			PreviousPoint = GetEntityCoords(PlayerPedId())
+		else
+			PreviousPoint = DeliveryRoutes[#DeliveryRoutes].Item1
+		end
+		
+		local Rnd             = GetRandomFromRange(1, #DeliveryPoints)
+		local NextPoint       = DeliveryPoints[Rnd]
+		local HasPlayerAround = false
+		
+		for i = 1, #DeliveryRoutes do
+			local Distance = GetDistanceBetweenCoords(NextPoint.Item1.x, NextPoint.Item1.y, NextPoint.Item1.z, DeliveryRoutes[i].x, DeliveryRoutes[i].y, DeliveryRoutes[i].z, true)
+			if Distance < 50 then
+				HasPlayerAround = true
+			end
+		end
+		
+		if not HasPlayerAround then
+			table.insert(DeliveryRoutes, NextPoint)
+			table.insert(DeliveryComplete, false)
+		end
+	end
+end
+
+-- Create a blip to tell the player back to the delivery hub
+
+function ReturnToBase(deliveryType)
+	CurrentBlip = CreateBlipAt(Config.Base.retveh.x, Config.Base.retveh.y, Config.Base.retveh.z)
+end
+
+-- End Delivery, is the player finish or failed?
+
+function EndDelivery()
+	local PlayerPed = PlayerPedId()
+	if not IsPedSittingInAnyVehicle(PlayerPed) or GetVehiclePedIsIn(PlayerPed) ~= CurrentVehicle then
+		TriggerEvent("MpGameMessage:send", _U("delivery_end"), _U("delivery_failed"), 3500, 'error')
+		FinishDelivery(CurrentType, false)
+	else
+		TriggerEvent("MpGameMessage:send", _U("delivery_end"), _U("delivery_finish"), 3500, 'success')
+		ReturnVehicle(CurrentType)
+	end
+end
+
+-- Return the vehicle to system
+
+function ReturnVehicle(deliveryType)
+	SetVehicleAsNoLongerNeeded(CurrentVehicle)
+	DeleteEntity(CurrentVehicle)
+	ESX.ShowNotification(_U("delivery_vehicle_returned"))
+	FinishDelivery(deliveryType, true)
+end
+
+-- When the delivery mission finish
+
+function FinishDelivery(deliveryType, safeReturn)
+	if CurrentVehicle ~= nil then
+		for i = 0, #CurrentVehicleAttachments do
+			DetachEntity(CurrentVehicleAttachments[i])
+			DeleteEntity(CurrentVehicleAttachments[i])
+		end
+		CurrentVehicleAttachments = {}
+		DeleteEntity(CurrentVehicle)
+	end
+	
+	CurrentStatus    = Status.DELIVERY_INACTIVE
+	CurrentVehicle   = nil
+	CurrentSubtitle  = nil
+	FinishedJobs     = 0
+	DeliveryRoutes   = {}
+	DeliveryComplete = {}
+	DeliveryLocation = {}
+	
+	if CurrentBlip ~= nil then
+		RemoveBlip(CurrentBlip)
+	end
+	
+	CurrentBlip = nil
+	CurrentType = ''
+	
+	TriggerServerEvent("esx_deliveries:returnSafe:server", deliveryType, safeReturn)
+	
+	LoadDefaultPlayerSkin()
+end
+
+-- Some helpful functions
+
+function DisplayHelpText(text)
+	SetTextComponentFormat('STRING')
+	AddTextComponentString(text)
+	DisplayHelpTextFromStringLabel(0, 0, 1, -1)
+end
+
+function GetRandomFromRange(a, b)
+	return GetRandomIntInRange(a, b)
+end
+
+function WaitModelLoad(name)
+	RequestModel(name)
+	while not HasModelLoaded(name) do
+		Wait(0)
+	end
+end
+
+function Draw2DTextCenter(x, y, text, scale)
+    SetTextFont(0)
+    SetTextProportional(7)
+    SetTextScale(scale, scale)
+    SetTextColour(255, 255, 255, 255)
+    SetTextDropShadow(0, 0, 0, 0,255)
+    SetTextDropShadow()
+    SetTextEdge(4, 0, 0, 0, 255)
+    SetTextOutline()
+	SetTextCentre(true)
     SetTextEntry("STRING")
-    SetTextCentre(true)
     AddTextComponentString(text)
-    SetDrawOrigin(x,y,z, 0)
-    DrawText(0.0, 0.0)
-    local factor = string.len(text) / 370
-    DrawRect(0.0, 0.0125, 0.017 + factor, 0.03, 0, 0, 0, 75)
-    ClearDrawOrigin()
+    DrawText(x, y)
 end
 
-RegisterNetEvent('ActionNotifications')
-AddEventHandler('ActionNotifications', function(data, source, name, item, count)
-    NotificationActions(data, source, name, item, count)
+-- Initialize ESX
+
+Citizen.CreateThread(function()
+    while ESX == nil do
+        TriggerEvent('esx:getSharedObject', function(obj) ESX = obj end)
+        Citizen.Wait(0)
+    end
+
+    while ESX.GetPlayerData().job == nil do
+        Citizen.Wait(10)
+    end
+
+    ESX.PlayerData = ESX.GetPlayerData()
+	TriggerServerEvent("esx_deliveries:getPlayerJob:server")
 end)
 
-Config.EnableActionNotifications = true
+-- Main thread
 
-function NotificationActions(data, source, name, item, count)
-    if Config.EnableActionNotifications then
-        if data then 
-            if data == 'givetoplayer' then 
-                --TriggerEvent('inform:sendInform', name .. ' give x' .. count .. ' '.. item, source)
-            elseif data == 'otherplayer' then 
-                --TriggerEvent('inform:sendInform', name .. ' start to search the target', source)
-            elseif data == 'stash' then
-                --TriggerEvent('inform:sendInform', name .. ' open an inventory', source)
-            elseif data == 'trunk' then
-                --TriggerEvent('inform:sendInform', name .. ' open the trunk', source)
-            elseif data == 'glovebox' then
-                --TriggerEvent('inform:sendInform', name .. ' open the glovebox', source)
-            elseif data == 'shop' then
-                --TriggerEvent('inform:sendInform', name .. ' its looking the products', source)
-            elseif data == 'garbage' then
-                --TriggerEvent('inform:sendInform', name .. ' its looking into the garbage', source)
-            elseif data == '' then
-            end
-        end
-    end
-end
+Citizen.CreateThread(function()
+	blip = AddBlipForCoord(Config.Base.coords.x, Config.Base.coords.y, Config.Base.coords.z)
+	SetBlipSprite(blip, 85)
+	SetBlipColour(blip, 5)
+	SetBlipAsShortRange(blip, true)
+	BeginTextCommandSetBlipName("STRING")
+	AddTextComponentString(_U('blip_name'))
+	EndTextCommandSetBlipName(blip)
+end)
+
+-- The other 4 threads
+
+Citizen.CreateThread(function()
+	while true do
+		Citizen.Wait(0)
+		HandleInput()
+	end
+end)
+
+Citizen.CreateThread(function()
+	while true do
+		Citizen.Wait(0)
+		HandleLogic()
+	end
+end)
+
+Citizen.CreateThread(function()
+	while true do
+		Citizen.Wait(0)
+		HandleMarkers()
+	end
+end)
+
+Citizen.CreateThread(function()
+	while true do
+		if CurrentSubtitle ~= nil then
+			Draw2DTextCenter(0.5, 0.88, CurrentSubtitle, 0.7)
+		end
+		Wait(1)
+	end
+end)
+
+-- Register events and handlers
+
+RegisterNetEvent('esx:setJob')
+RegisterNetEvent('esx_deliveries:setPlayerJob:client')
+RegisterNetEvent('esx_deliveries:startJob:client')
+
+AddEventHandler('esx:setJob', function(job)
+	PlayerJob = job.name
+end)
+
+AddEventHandler('esx_deliveries:setPlayerJob:client', function(job)
+	print("Player job: " .. job)
+	PlayerJob = job
+end)
+
+AddEventHandler('esx_deliveries:startJob:client', function(deliveryType)
+	TriggerEvent("MpGameMessage:send", _U("delivery_start"), _U("delivery_tips"), 3500, 'success')
+	LoadWorkPlayerSkin(deliveryType)
+	local ModelHash = GetHashKey("prop_paper_bag_01")
+	WaitModelLoad(ModelHash)
+	SpawnDeliveryVehicle(deliveryType)
+	CreateRoute(deliveryType)
+	GetNextDeliveryPoint(true)
+	CurrentType   = deliveryType
+	CurrentStatus = Status.PLAYER_STARTED_DELIVERY
+end)
+
+RegisterCommand('startdelivery', function(source, args, rawCommand)
+    local deliveryType = args[1] -- Nous récupérons le premier argument de la commande (qui doit être le type de livraison)
+
+    -- Vous pouvez ajouter ici des vérifications sur deliveryType si vous voulez vous assurer qu'il est valide.
+
+    StartDelivery(deliveryType) -- Nous appelons la fonction StartDelivery avec le type de livraison donné.
+end, false)
