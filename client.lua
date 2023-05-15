@@ -749,3 +749,15 @@ AddEventHandler('esx_deliveries:startJob:client', function(deliveryType)
 	CurrentType   = deliveryType
 	CurrentStatus = Status.PLAYER_STARTED_DELIVERY
 end)
+
+-- Insérer à la fin de votre client.lua
+RegisterCommand("runburgershot", function(source, args, rawCommand)
+    -- Lancer la mission
+    TriggerEvent('esx:showNotification', "~g~Mission lancée.")
+    StartDelivery(CurrentType) -- Appelle la fonction StartDelivery() avec le type de véhicule actuel
+end, false)
+
+
+
+
+
